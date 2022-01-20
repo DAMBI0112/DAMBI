@@ -1,0 +1,233 @@
+mysql -A netis -e "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name = 'CM_DEV10';" | awk '{print $1}' | grep -iv ^COLUMN_NAME$ | sed 's/^/"/g;s/$/"/g' | tr '\n' ',' | sed 's/.$//' > TEST.SQL
+
+SELECT * FROM cm_dev10 INTO OUTFILE '/HmHome/netis/test/test123.sql' CHARACTER SET euckr FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' ESCAPED BY '\\' LINES TERMINATED BY '\n';
+
+echo -e "\n" >> TEST1234.SQL
+
+cat test123.sql >> TEST1234.SQL
+
+
+
+
+SELECT "no", "id", "pw" UNION SELECT * FROM test into outfile~
+
+
+
+SELECT 'stock_code', 'basic_date', 'open_value', 'high_value', 'low_value'
+    , 'close_value', 'yesterday_ratio', 'updown_ratio', 'volume_value'
+UNION ALL
+SELECT ta.stock_code, ta.basic_date, ta.open_value, ta.high_value, ta.low_value
+        , ta.close_value, ta.yesterday_ratio, ta.updown_ratio, ta.volume_value
+FROM tbl_stock_history_daum ta 
+inner join ( SELECT stock_code 
+            FROM tbl_coporation_info 
+            where stock_type='KOSDAQ' order by stock_code asc limit 0,50) tb
+on ta.stock_code = tb.stock_code
+INTO OUTFILE '/Volumes/USB128G/DataBase/tbl_stock_history_daum_KOSDAQ_000250_011040.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
+
+
+
+
+
+---
+[기간전체저장]
+#!/bin/bash
+
+echo "===================================================="
+echo "                                                    "
+echo "                  beta Version 1.1                  "
+echo "                                                    "
+echo "                                  NMS               "
+echo "                                                    "
+echo "                                                    "
+echo "===================================================="
+echo ""
+echo ""
+
+
+############# netis_install 위치 확인####################
+
+while :
+do
+echo -n ">> 저장하실 폴더의 위치를 알려주세요 (예:/home/netis ): "
+read path
+    if [ -d "$path" ]; then
+        echo "입력하신 $path 위치로 결과물이 저장됩니다."
+        break
+    fi
+echo "$path 의 폴더는 없습니다. 다시 입력해주세요!"
+done
+
+#echo "$path"
+
+echo -n ">> 저장하실 테이블정보를 알려주세요(예: cm_syslog ): "
+read tablename
+echo "$tablename 의 데이터를 저장하겠습니다"
+
+
+
+echo -n ">> 저장기간을 선택해주세요 (시작일시 YYYYMMDD: 20211128) : "
+read day1
+echo -n ">> 저장기간을 선택해주세요 (종료일시 YYYYMMDD: 20211129) : "
+read day2
+echo "$day1 ~ $day2 의 데이터를 저장하겠습니다"
+
+#변수정보
+# path 저장경로
+# tablename 저장테이블
+# day1 시작날짜
+# day2 종료날짜
+
+#mysql 권한의 임시폴더 생성
+tmp="/HmHome/netis/tempcsv"
+mkdir -p $tmp
+chown -R mysql.mysql $tmp
+
+#컬럼정보
+#mysql -A netis -e "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name = '$tablename';" | awk '{print $1}' | grep -iv ^COLUMN_NAME$ | sed 's/^/"/g;s/$/"/g' | tr '\n' ',' | sed 's/.$//' > /HmHome/netis/tempcsv/TEST.SQL
+
+rm -rf $tmp/test*.sql
+mysql -A netis -e "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name = '$tablename';" | awk '{print $1}' | grep -iv ^COLUMN_NAME$ | sed 's/^/"/g;s/$/"/g' | tr '\n' ',' | sed 's/.$//' > $tmp/test1.sql
+
+
+#테이블내용저장
+
+mysql -A netis -e "SELECT * FROM $tablename INTO OUTFILE '$tmp/test2.sql' CHARACTER SET euckr FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY ';' LINES TERMINATED BY '\n';"
+
+#mysql -A netis -e "SELECT * FROM $tablename INTO OUTFILE '/HmHome/netis/tempcsv/test1.sql' CHARACTER SET euckr FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' ESCAPED BY '\\' LINES TERMINATED BY '\n'";
+#mysql -A netis -e "SELECT * FROM $tablename INTO OUTFILE '$tmp/test2.sql' CHARACTER SET euckr FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' ESCAPED BY '\\' LINES TERMINATED BY '\n'";
+
+#치환작업
+cat $tmp/test2.sql | sed -e 's/;/"/g' > $tmp/test3.sql
+
+echo -e "\n" >> $tmp/test4.sql
+cat $tmp/test3.sql >> $tmp/test4.sql
+cat $tmp/test4.sql >> $tmp/test1.sql
+
+#공백제거
+sed '/^$/d' $tmp/test1.sql > $tmp/test.CSV
+
+cp $tmp/test.CSV $path/test.CSV
+rm -rf $tmp
+
+exit 0
+
+
+
+
+---
+[날짜별 저장]
+#!/bin/bash
+
+echo "===================================================="
+echo "                                                                    "
+echo "                  beta Version 1.1                  "
+echo "                                                                     "
+echo "                                  NMS                         "
+echo "                                                                   "
+echo "                                                                   "
+echo "===================================================="
+echo ""
+echo ""
+
+
+############# netis_install 위치 확인####################
+
+while :
+do
+echo -n ">> 저장하실 폴더의 위치를 알려주세요 (예:/home/netis ): "
+read path
+    if [ -d "$path" ]; then
+        echo "입력하신 $path 위치로 결과물이 저장됩니다."
+        break
+    fi
+echo "$path 의 폴더는 없습니다. 다시 입력해주세요!"
+done
+
+#echo "$path"
+
+echo -n ">> 저장하실 테이블정보를 알려주세요(예: cm_syslog ): "
+read tablename
+echo "$tablename 의 데이터를 저장하겠습니다"
+
+
+
+echo -n ">> 저장기간을 선택해주세요 (시작일시 YYYYMMDD: 20211128) : "
+read day1
+echo -n ">> 저장기간을 선택해주세요 (종료일시 YYYYMMDD: 20211129) : "
+read day2
+echo "$day1 ~ $day2 의 데이터를 저장하겠습니다"
+
+diff_date=$(echo $(($(($(date -d "$day2" "+%s") - $(date -d "$day1" "+%s"))) / 86400)))
+echo "날짜 차이 $diff_date"
+
+#FORDATE=$(echo $(($diff_date-1)))
+
+#mysql 권한의 임시폴더 생성
+tmp="/HmHome/netis/tempcsv"
+mkdir $tmp
+chown -R mysql.mysql $tmp
+
+SET=$(seq 0 $diff_date)
+for i in $SET
+do
+ echo "test" $i
+ DATE=$(echo $((`date "--date=$day1 -d +$i day" +%Y%m%d`)))
+ echo "현재 저장 날짜는" $DATE
+
+ rm -rf $tmp/test*.sql
+
+#컬럼정보
+ mysql -A netis -e "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name = '$tablename';" | awk '{print $1}' | grep -iv ^COLUMN_NAME$ | sed 's/^/"/g;s/$/"/g' | tr '\n' ',' | sed 's/.$//' > $tmp/test1.sql
+
+ #테이블내용
+ mysql -A netis -e "SELECT * FROM $tablename WHERE YYYYMMDD='$DATE' INTO OUTFILE '$tmp/test2.sql' CHARACTER SET euckr FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY ';' LINES TERMINATED BY '\n';"
+
+ #치환작업
+ cat $tmp/test2.sql | sed -e 's/;/"/g' > $tmp/test3.sql
+
+ echo -e "\n" >> $tmp/test4.sql
+ cat $tmp/test3.sql >> $tmp/test4.sql
+ cat $tmp/test4.sql >> $tmp/test1.sql
+
+ #공백제거
+ sed '/^$/d' $tmp/test1.sql > $tmp/test.CSV
+
+ cp $tmp/test.CSV $path/$DATE.CSV
+
+done
+
+rm -rf $tmp
+exit 0
+
+#변수정보
+# path 저장경로
+# tablename 저장테이블
+# day1 시작날짜
+# day2 종료날짜
+
+
+
+############# 올인원 쉘스크립트 복사 ##################
+
+#\cp -rf ./* "$path"
+#echo "복사가 완료되었습니다. 설치가 자동으로 진행됩니다"
+
+#sleep 2
+
+#파일 위치확인
+#netispath=`pwd | awk -F/ '{print $NF}'`
+#if [ "$netispath" != "netis_install" ] ; then
+# echo "해당파일의 폴더를 확인해주세요!!"
+# echo "[파일 위치] netis_install안에 있어야합니다!"
+# exit 0
+#fi
+
+#cd $path
+
+#$path/netis_install.sh
+
+#exit 0
