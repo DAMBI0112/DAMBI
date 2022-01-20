@@ -1,0 +1,28 @@
+#!/bin/bash
+DB=$1
+
+#4개월전데이터삭제
+START=$(date --date '4 month ago' '+%Y%m01')
+END=$(date -d "$(date --date '3 month ago' '+%Y%m01') -1 day" '+%Y%m%d')
+
+echo -e "\n $(date) \n" >> ./autoES.log
+
+#날짜지정방식
+#START=20210801
+#END=20210831
+
+CURRENT="$START"
+
+while [ "$CURRENT" -le "$END" ]; do
+        HOUR=00
+        while [ "$HOUR" != "24" ]; do
+                if [ ${HOUR} -gt 0 ] && [ ${HOUR} -lt 10 ] ; then
+                        HOUR="0$HOUR"
+                fi
+                #curl -X POST 'https://10.18.3.51:9200/$1/_delete_by_query?pretty' -d ' {"query": {"bool": {"must": {{"range": {"YMDHMS.keyword": {"gte": "$CURRENT$HOUR'0000'", "lte": "$CURRENT$HOUR'5959'"}}}}, "must_not": [],"should": []}},"sort": [], "aggs": {}}' -H 'Content-Type: application/json' -k -v -u elastic:ntflow
+                echo -e "$1-$CURRENT$HOUR:OK\n" >> ./autoES.log
+                HOUR=$((${HOUR#0}+1))
+        done
+
+        CURRENT=`date -d "$CURRENT 1 day" +"%Y%m%d"`
+done
