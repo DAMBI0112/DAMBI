@@ -1,0 +1,30 @@
+#!/bin/bash
+
+rm -rf 1.txt
+mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select dev_ip from cm_dev10 where mng_no in ( select mng_no from cm_dev10_status where ping_status=1 ) and perf_poll=0 and grp_no not in (select grp_no from nt_cfg_group where grp_name='중앙');" | sed 1d |column -t > 1.txt
+
+CURRENTPATH=$( pwd )
+STR=$(cat $CURRENTPATH/1.txt)
+
+cd /HmHome/netis/nms/bin
+
+ARRAY=( $STR )
+#echo ${ARRAY[@]}
+
+for NUM in "${!ARRAY[@]}"; do
+  R1=$(/HmHome/netis/nms/bin/snmpwalk -v3 -u vote_snmp -l authPriv -a SHA -A n -x DES -X n ${ARRAY[NUM]} .1.3.6.1.4.1.11.2.14.11.5.1.9.6.1 2>&1 | awk '{print $1}')
+   if [ $R1 = ".1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0" ]; then
+         echo "[${NUM}] ${ARRAY[NUM]} : YES"
+         mng_test=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select mng_no from cm_dev10 where dev_ip='${ARRAY[NUM]}';"  | sed 1d |column -t)
+         echo "$mng_test"
+         ./NT_chgmgr $mng_test
+         echo "[${NUM}] ${ARRAY[NUM]} : NT_chgmgr YES"
+         sleep 2
+         mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "update cm_dev10 set perf_poll=1 and icmp_poll=1 where dev_ip='${ARRAY[NUM]}';"
+         sleep 2
+         mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "update cm_dev20 A, cm_dev10 B set A.perf_poll=1, A.evt_poll=1, A.stat_poll=1 where A.if_idx=25 and A.mng_no=B.mng_no and B.dev_ip='${ARRAY[NUM]}';"
+   else
+         echo "[${NUM}] ${ARRAY[NUM]} : FAIL"
+   fi
+
+done
