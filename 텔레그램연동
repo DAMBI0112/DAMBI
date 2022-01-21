@@ -1,0 +1,80 @@
+#참고 :https://soul0.tistory.com/587
+#참고 : https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/getUpdates
+
+# 방번호: 1167329521
+# https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/sendMessage?chat_id=1222155994&text=test
+#{"ok":true,"result":[{"update_id":718293420,
+#"message":{"message_id":3,"from":{"id":1222155994,"is_bot":false,"first_name":"\u3141\u3145","language_code":"ko"},"chat":{"id":1222155994,"first_name":"\u3141\u3145","type":"private"},"date":1591234945,"text":"/getUpdates","entities":[{"offset":0,"length":11,"type":"bot_comm and"}]}}]}
+
+
+
+
+#---------------------------------------------------
+#!/bin/bash
+
+
+message=$(echo -e "[test] ${MSG}")
+
+send() {
+        curl -s -X POST https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/sendMessage?chat_id=1268532406 -d text="$message"
+}
+
+if [[ ! -z "$message" ]]; then
+        send
+fi
+
+#--------------------------------------------------------------
+#!/bin/bash
+
+
+message=$(echo -e "[test] ${MSG}")
+
+send() {
+        curl -s -X POST https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/sendMessage?chat_id=1222155994 -d text="$message" -d chat_id=$chatId
+}
+
+if [[ ! -z "$message" ]]; then
+        send
+fi
+
+
+list
+1222155994
+1268532406
+
+
+--------------
+MsgSendShell.sh
+
+
+#!/bin/bash
+
+
+message=$(echo -e "$1")
+
+send() {
+        curl -s -X POST https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/sendMessage?chat_id=1222155994 -d text="$message"
+        curl -s -X POST https://api.telegram.org/bot1167329521:AAH_MZTjI50Lo7Y0-1tB8zWW_KtZzAgAR8Q/sendMessage?chat_id=1268532406 -d text="$message"
+}
+
+if [[ ! -z "$message" ]]; then
+        send
+fi
+-------------
+
+#(3)CMD
+SMS_TYPE=#3
+"SMS_CMD_PATH"="/home/netis/config/MsgSendShell.sh"         //sh 파일 경로
+"SMS_CMD_ARGS"="'${MSG}'"
+
+-------------
+
+#!/bin/bash
+
+echo "INSERT INTO NETIS.CUSTOMER_SMS_SEND (ID, USER_ID, SCHEDULE_TYPE,TITLE,MSG_CONTENT, CALLING_NUM,TGT_NM,PHONE_NUM,RESERV_DTTM, REG_DTTM) VALUES
+(NETIS.CUSTOMER_SMS_SEND_SEQ.NEXTVAL,'spadmin','0','SMSTest','$1','0221472000','test','$2',NULL,TO_CHAR(SYSDATE, 'YYYYMMDDHH24MISS'));" | sqlplus -s NETIS/NTFLOW@NETIS
+
+
+
+---
+curl space = %20
