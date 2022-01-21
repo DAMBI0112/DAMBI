@@ -1,0 +1,48 @@
+#!/bin/bash
+
+AGO=`date +%Y%m%d -d '5 year ago'`
+MON=`date +%Y%m%d -d '1 month'`
+MON2=`date +%Y%m%d -d '2 month'`
+
+#delete 5years ago
+
+SQL0="select partition_name from information_schema.partitions where table_name = 'cm_syslog' and IF(substring(partition_name,2)<'&AGO',1,0)"
+
+for i in $SQL1; do
+ echo "$i drop start"
+ mysql -uroot -pntflow netis -e "Alter table cm_syslog DROP PARTITION $i"
+ echo "$i drop complite"
+done
+
+#create
+
+echo "$MON partition create"
+
+SQL2="ALTER TABLE cm_syslog REORGANIZE PARTITION pdate INTO ( 
+PARTITION p$MON VALUES LESS THEN ($MON2) ENGINE = InnoDB,
+PARTITION pdate VALUES LESS THEN MAXVALUE ENGINE = InnoDB;"
+mysql -uroot -pntflow netis -e "$SQL2"
+
+echo "$MON partition complete"
+
+#create 2
+
+SQL2="select partition_name from INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_SCHEMA = 'netis' and TABLE_NAME='cm_syslog' and partition_name!='pdate' order by partition_name desc limit 1"
+SQL3=$(exec mysql -uroot -pntflow netis -N -s -e "SQL2")
+SQL3="${SQL3#*p}"
+SQL5="ALTER TABLE cm_syslog REORGANIZE PARTITION pdate INTO ("
+
+if [ $MON2 -gt $SQL3 ];then
+ while [ $MON2 -gt $SQL3 ]
+  do 
+  echo "$SQL3 +1 month"
+  SQL3=`date +%Y%m%d -d "$SQL3 + 1 months"`;
+  VAL=`date +%Y%m%d -d "$SQL3 + 1 months"`;
+  SQL4="PARTITION p$SQL3 VALUES LESS THEN ($VAL) ENGINE = InnoDB,"
+  SQL5="$SQL5 $SQL4"
+ done
+SQL6="PARTITION pdate VALUES LESS THAN MAXVALE ENGINE =InnoDB):"
+SQL5="$SQL5 $SQL6"
+mysql -uroot -pntflow netis -e "$SQL5"
+fi
+ echo "partition complete"
