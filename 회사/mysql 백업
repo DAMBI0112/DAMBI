@@ -1,0 +1,56 @@
+#!/bin/bash
+
+cd /HmHome/DBbackup
+backupDate=$(date +%Y%m%d_%H%M%S)
+#DelDate=`date +Y%m%d -d '-200days'`
+
+USERNAME=root
+PASSWORD=ntflow
+DATABASE=netis
+
+mysqldump -u$USERNAME -p$PASSWORD netis cm_evt_topo_dev --single-transaction > ./'cm_evt_topo_dev_'$backupDate'.sql'
+
+mysqldump -u$USERNAME -p$PASSWORD --all-databases --single-transaction > 0/'NETIS_'$backupDate'.sql'
+
+tar cvzf ./'cm_evt_topo_dev_'$backupDate'.sql'
+tar cvzf ./'NETIS'_'$backupDate'.sql'
+
+find /HmHome/DBbackup/*.tar.gz -maxdepth 0 -mtime +190 -delete
+
+expect <<EOF
+spawn scp /HmHome/DBbackup/*$backupDate* root@172.18.111.55:/HmHome/DBbackup/
+expect "password:"
+send "gkahs@#$￦r"
+expect eof
+EOF
+
+
+
+
+
+
+---
+
+#!/bin/bash
+#!/bin/sh
+
+expect -c "
+set timeout 3
+spawn scp /HmHome/setup/test/test1.txt root@10.1.1.198:/HmHome/setup/test/1/
+
+expect 'password:'
+    send \"gkahs@#$\\r\"
+        expect eof
+"
+
+---
+#!/bin/bash
+
+expect <<EOF
+set timeout 3
+spawn scp /HmHome/setup/test/test1.txt root@10.1.1.198:/HmHome/setup/test/1/
+
+expect 'password:'
+    send "gkahs@#$\\r"
+        expect eof
+EOF
