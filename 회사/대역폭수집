@@ -1,0 +1,192 @@
+#!/bin/bash
+
+#대역폭 수집
+
+cd /HmHome/netis/nms/bin
+
+##rm -rf 1.txt
+
+#수집중인 장비 대상
+##mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select dev_ip from cm_dev10 where between 1 and 500 and mng_no in ( select mng_no from cm_dev10_status where ping_status=1 ) and perf_poll=1 and grp_no not in (select grp_no from nt_cfg_group where grp_name='중앙');" | sed 1d |column -t > 1.txt
+
+CURRENTPATH=$( pwd )
+STR=$(cat $CURRENTPATH/1.txt)
+Date=$1
+#Date=$(date +%Y%m%d%H%M%S)
+
+ARRAY=( $STR )
+#echo ${ARRAY[@]}
+
+for NUM in "${!ARRAY[@]}"; do
+##  R1=$(/HmHome/netis/nms/bin/snmpwalk -v3 -u vote_snmp -l authPriv -a SHA -A necic77* -x DES -X necic77* ${ARRAY[NUM]} .1.3.6.1.2.1.2.2.1.5.25 2>&1 | awk '{print $1}')
+   R1=$(/HmHome/netis/nms/bin/snmpwalk -v2c -c hamon ${ARRAY[NUM]} .1.3.6.1.2.1.31.1.1.1.15.50  2>&1 | awk '{print $1}')
+   if [ $R1 = ".1.3.6.1.2.1.31.1.1.1.15.50" ]; then
+         #snmpwalk성공-insert
+         echo "[${NUM}] ${ARRAY[NUM]} : YES"
+         ## R2=$(/HmHome/netis/nms/bin/snmpwalk -v2c -c netis ${ARRAY[NUM]} .1.3.6.1.2.1.2.2.1.5.25  2>&1 | awk '{print $4}')
+         #R2 대역폭 / R3 장비명 / mng_test 장비번호 / GRP_NAME 그룹명
+         #R2=$(/HmHome/netis/nms/bin/snmpwalk -v2c -c hamon ${ARRAY[NUM]} .1.3.6.1.2.1.31.1.1.1.15.50  2>&1 | awk '{print $4}')
+         R3=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select IFNULL(NULLIF(USER_DEV_NAME,''),DEV_NAME) AS DEV_NAME FROM CM_DEV10 where  dev_ip='${ARRAY[NUM]}';"  | sed 1d |column -t)
+         mng_test=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select mng_no from cm_dev10 where dev_ip='${ARRAY[NUM]}';"  | sed 1d |column -t)
+         GRP_NAME=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "WITH grp
+             AS (SELECT grp_no,
+                 grp_name,
+                 grp_parent
+                 FROM   nt_cfg_group),
+                grptree
+                 AS (SELECT CONCAT(TOTAL.grp_name, ' ', TOTAL.sub_name, ' ', TOTAL.end_name)
+                    AS
+                         FULL_NAME,
+                         TOTAL.grp_parent,
+                         TOTAL.grp_no,
+                         TOTAL.grp_name,
+                         TOTAL.sub_no,
+                         TOTAL.sub_name,
+                         TOTAL.end_no,
+                         TOTAL.end_name
+                 FROM   (SELECT GRP11.grp_parent AS GRP_PARENT,
+                         GRP11.grp_no     AS GRP_NO,
+                         GRP11.grp_name   AS GRP_NAME,
+                         GRP12.grp_no     AS SUB_NO,
+                         GRP12.grp_name   AS SUB_NAME,
+                         GRP12.grp_no     AS END_NO,
+                         ''               AS END_NAME
+                 FROM   (SELECT grp_no,
+                                grp_name,
+                                grp_parent
+                         FROM   grp
+                         WHERE  grp_parent = 1) GRP11
+                         LEFT JOIN grp GRP12
+                               ON GRP11.grp_no = GRP12.grp_parent
+                 UNION ALL
+                 SELECT GRP4.grp_parent AS GRP_PARENT,
+                        GRP4.grp_no     AS GRP_NO,
+                        GRP4.grp_name   AS GRP_NAME,
+                        GRP4.sub_no     AS SUB_NO,
+                        GRP4.sub_name   AS SUB_NAME,
+                        GRP3.grp_no     AS END_NO,
+                        GRP3.grp_name   AS END_NAME
+                 FROM   (SELECT GRP1.grp_parent AS GRP_PARENT,
+                                GRP1.grp_no     AS GRP_NO,
+                                GRP1.grp_name   AS GRP_NAME,
+                                GRP2.grp_no     AS SUB_NO,
+                                GRP2.grp_name   AS SUB_NAME
+                         FROM   (SELECT grp_no,
+                                        grp_name,
+                                        grp_parent
+                                 FROM   grp
+                                 WHERE  grp_parent = 1) GRP1
+                                LEFT JOIN grp GRP2
+                                       ON GRP1.grp_no = GRP2.grp_parent) GRP4
+                        LEFT JOIN grp GRP3
+                               ON GRP3.grp_parent = GRP4.sub_no) TOTAL)
+                SELECT
+                        Ifnull((SELECT full_name
+                        FROM   grptree
+                        WHERE  end_no = B.grp_no), '중앙')          AS GRP_NAME
+                        FROM   (SELECT LEAF.sub_name AS GRP_NAME,
+                        DEV.*
+                        FROM   cm_dev10 DEV,
+                        nt_cfg_group GRP,
+                        nt_cfg_leaf LEAF
+                WHERE  DEV.grp_no = LEAF.sub_no
+                        AND GRP.grp_no = LEAF.grp_no
+                        AND DEV.dev_ip='${ARRAY[NUM]}') B
+                WHERE  B.dev_kind1 = 'DEV' group by B.dev_ip;"  | sed 1d |column -t)
+#R2이동후 수정
+         for idx in {49..60}
+         do
+
+                 R2=$(/HmHome/netis/nms/bin/snmpwalk -v2c -c hamon ${ARRAY[NUM]} .1.3.6.1.2.1.31.1.1.1.15.${idx}  2>&1 | awk '{print $4}')
+                echo "장비번호: ${mng_test}, 장비IP: ${ARRAY[NUM]}, 회선번호:${idx}, 회선대역폭: ${R2}, 그룹명: ${GRP_NAME}, 장비명: ${R3}"
+                 mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "insert into cm_dev_bandwidth values ('${Date}','${mng_test}','${idx}','${ARRAY[NUM]}','${GRP_NAME}','${R3}','${R2}','성공')"
+         done
+
+    else
+         echo "[${NUM}] ${ARRAY[NUM]} : FAIL"
+         mng_test=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "select mng_no from cm_dev10 where dev_ip='${ARRAY[NUM]}';"  | sed 1d |column -t)
+         if [ -z "$mng_test" ]; then
+                 mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "insert into cm_dev_bandwidth values ('${Date}','-1','-1','${ARRAY[NUM]}','미등록장비','미등록장비','-1','실패')"
+                else
+                 GRP_NAME=$(mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "WITH grp
+                     AS (SELECT grp_no,
+                         grp_name,
+                        grp_parent
+                         FROM   nt_cfg_group),
+                        grptree
+                         AS (SELECT CONCAT(TOTAL.grp_name, ' ', TOTAL.sub_name, ' ', TOTAL.end_name)
+                            AS
+                                 FULL_NAME,
+                                 TOTAL.grp_parent,
+                                 TOTAL.grp_no,
+                                 TOTAL.grp_name,
+                                 TOTAL.sub_no,
+                                 TOTAL.sub_name,
+                                 TOTAL.end_no,
+                                 TOTAL.end_name
+                        FROM   (SELECT GRP11.grp_parent AS GRP_PARENT,
+                                GRP11.grp_no     AS GRP_NO,
+                                GRP11.grp_name   AS GRP_NAME,
+                                GRP12.grp_no     AS SUB_NO,
+                                GRP12.grp_name   AS SUB_NAME,
+                                GRP12.grp_no     AS END_NO,
+                                ''               AS END_NAME
+                        FROM   (SELECT grp_no,
+                                       grp_name,
+                                       grp_parent
+                                FROM   grp
+                                WHERE  grp_parent = 1) GRP11
+                                LEFT JOIN grp GRP12
+                                      ON GRP11.grp_no = GRP12.grp_parent
+                          UNION ALL
+                          SELECT GRP4.grp_parent AS GRP_PARENT,
+                                GRP4.grp_no     AS GRP_NO,
+                                GRP4.grp_name   AS GRP_NAME,
+                                GRP4.sub_no     AS SUB_NO,
+                                GRP4.sub_name   AS SUB_NAME,
+                                GRP3.grp_no     AS END_NO,
+                                GRP3.grp_name   AS END_NAME
+                          FROM   (SELECT GRP1.grp_parent AS GRP_PARENT,
+                                GRP1.grp_no     AS GRP_NO,
+                                GRP1.grp_name   AS GRP_NAME,
+                                GRP2.grp_no     AS SUB_NO,
+                                GRP2.grp_name   AS SUB_NAME
+                         FROM   (SELECT grp_no,
+                                        grp_name,
+                                        grp_parent
+                                 FROM   grp
+                                 WHERE  grp_parent = 1) GRP1
+                                LEFT JOIN grp GRP2
+                                       ON GRP1.grp_no = GRP2.grp_parent) GRP4
+                        LEFT JOIN grp GRP3
+                               ON GRP3.grp_parent = GRP4.sub_no) TOTAL)
+                         SELECT
+                                Ifnull((SELECT full_name
+                                FROM   grptree
+                                WHERE  end_no = B.grp_no), '중앙')          AS GRP_NAME
+                                FROM   (SELECT LEAF.sub_name AS GRP_NAME,
+                                DEV.*
+                                FROM   cm_dev10 DEV,
+                                nt_cfg_group GRP,
+                                nt_cfg_leaf LEAF
+                        WHERE  DEV.grp_no = LEAF.sub_no
+                        AND GRP.grp_no = LEAF.grp_no
+                        AND DEV.dev_ip='${ARRAY[NUM]}') B
+                        WHERE  B.dev_kind1 = 'DEV' group by B.dev_ip;"  | sed 1d |column -t)
+
+                 mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "insert into cm_dev_bandwidth values ('${Date}','${mng_test}','25','${ARRAY[NUM]}','${GRP_NAME}','${R3}','-1','통신>실패')"
+
+         fi
+
+#         echo "$mng_test"
+#         ./NT_chgmgr $mng_test
+#         echo "[${NUM}] ${ARRAY[NUM]} : NT_chgmgr YES"
+#         sleep 2
+#         mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "update cm_dev10 set perf_poll=1 and icmp_poll=1 where dev_ip='${ARRAY[NUM]}';"
+#         sleep 2
+#         mysql -h netisdb --port 53306 -uroot -pntflow -A netis -e "update cm_dev20 A, cm_dev10 B set A.perf_poll=1, A.evt_poll=1, A.stat_poll=1 where A.if_idx=25 and A.mng_no=B.mng_no and B.dev_ip='${ARRAY[NUM]}';"
+#   else
+#         echo "[${NUM}] ${ARRAY[NUM]} : FAIL"
+   fi
+
+done
